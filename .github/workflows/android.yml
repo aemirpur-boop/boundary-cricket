@@ -3,28 +3,60 @@ name: Build Boundary Cricket APK
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Extract project
-        run: |
-          unzip -q Boundary_Cricket_Android_CloudBuild.zip -d /tmp/bc
-          cp /tmp/bc/settings.gradle .
-          cp /tmp/bc/build.gradle .
-          cp /tmp/bc/gradle.properties .
-          cp -r /tmp/bc/app .
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Extract Android project
+        shell: bash
+        run: |
+          set -e
+
+          mkdir -p source
+
+          ZIP_FILE=$(find . -maxdepth 2 -type f -iname '*.zip' | head -n 1)
+
+          if [ -n "$ZIP_FILE" ]; then
+            echo "Extracting: $ZIP_FILE"
+            unzip -q "$ZIP_FILE" -d source
+          else
+            echo "No ZIP found. Checking repository files."
+            cp -r . source/project
+          fi
+
+          SETTINGS=$(find source -type f \( \
+            -name settings.gradle \
+            -o -name settings.gradle.kts \
+          \) | head -n 1)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ERROR: settings.gradle not found!"
+            exit 1
+          fi
+
+          PROJECT_ROOT=$(dirname "$SETTINGS")
+
+          if [ ! -d "$PROJECT_ROOT/app" ]; then
+            echo "ERROR: Android app folder not found!"
+            find "$PROJECT_ROOT" -maxdepth 3 -type d
+            exit 1
+          fi
+
+          echo "PROJECT_DIR=$PROJECT_ROOT" >> "$GITHUB_ENV"
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -35,11 +67,21 @@ jobs:
           gradle-version: '8.7'
 
       - name: Build APK
-        run: gradle --no-daemon assembleDebug
+        shell: bash
+        run: |
+          cd "$PROJECT_DIR"
+
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Boundary-Cricket-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: '**/build/outputs/apk/debug/*.apk'
+          if-no-files-found: error
           
