@@ -1,24 +1,24 @@
+
 name: Build Boundary Cricket APK
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract Android Project
+      - name: Extract project
         run: |
           unzip -q Boundary_Cricket_Android_CloudBuild.zip -d /tmp/bc
-          cp -a /tmp/bc/Boundary_Cricket_Android/app .
-          cp /tmp/bc/Boundary_Cricket_Android/settings.gradle .
-          cp /tmp/bc/Boundary_Cricket_Android/build.gradle .
-          cp /tmp/bc/Boundary_Cricket_Android/gradle.properties .
+          cp /tmp/bc/settings.gradle .
+          cp /tmp/bc/build.gradle .
+          cp /tmp/bc/gradle.properties .
+          cp -r /tmp/bc/app .
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -29,11 +29,13 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build APK
-        uses: gradle/gradle-build-action@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
-          arguments: assembleDebug --no-daemon
+
+      - name: Build APK
+        run: gradle --no-daemon assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
